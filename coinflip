@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cara ou Coroa - Arc</title>
+  <script src="https://cdn.ethers.io/lib/ethers-6.13.2.umd.min.js"></script>
+  <style>
+    body { font-family: Arial; text-align: center; background: #f0f8ff; padding: 20px; }
+    h1 { color: #1a1a1a; }
+    button { 
+      background: #007bff; color: white; padding: 12px 24px; 
+      border: none; border-radius: 8px; cursor: pointer; margin: 10px; font-size: 18px;
+    }
+    button:hover { background: #0056b3; }
+    input { padding: 10px; width: 100px; font-size: 16px; text-align: center; }
+    #result { font-size: 24px; margin: 20px; color: #d63384; }
+    .small { font-size: 14px; color: #666; }
+  </style>
+</head>
+<body>
+  <h1>Cara ou Coroa na Arc</h1>
+  <p><strong>Saldo USDC:</strong> <span id="balance">0</span></p>
+  
+  <input type="number" id="bet" placeholder="1" min="1" value="1" />
+  <p class="small">Aposta em USDC (mínimo 1)</p>
+
+  <br/>
+  <button onclick="connect()">Conectar MetaMask</button>
+  <button onclick="addArc()">Adicionar Rede Arc</button>
+  <br/><br/>
+  <button onclick="jogar(0)">CARA</button>
+  <button onclick="jogar(1)">COROA</button>
+
+  <div id="result">Clique em Conectar</div>
+
+<script>
+  // === CONFIGURAÇÕES (MUDE SÓ O ENDEREÇO DO CONTRATO DEPOIS!) ===
+  const CONTRACT_ADDRESS = "COLE_AQUI_O_ENDEREÇO_DO_SEU_CONTRATO"; // ← MUDE DEPOIS
+  const USDC = "0x3600000000000000000000000000000000000000";
+  const ABI = ["function flip(uint256 bet, uint256 guess) external"];
+
+  let provider, signer, contract, usdc;
+
+  async function connect() {
+    if (!window.ethereum) return alert("Instale o MetaMask!");
+
+    provider = new ethers.BrowserProvider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    signer = await provider.getSigner();
+
+    contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+    usdc = new ethers.Contract(USDC, [
+      "function balanceOf(address) view returns (uint256)",
+      "function approve(address,uint256) returns (bool)"
+    ], signer);
+
+    updateBalance();
+    document.getElementById("result").innerHTML = "Conectado!";
+  }
+
+  async function addArc() {
+    try {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [{
+          chainId: '0x4cd00a',
+          chainName: 'Arc Testnet',
+          rpcUrls: ['https://rpc.testnet.arc.network'],
+          nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 6 },
+          blockExplorerUrls: ['https://testnet.arcscan.app']
+        }]
+      });
+      alert("Rede Arc adicionada!");
+    } catch (e) { alert("Erro: " + e.message); }
+  }
+
+  async function updateBalance() {
+    const bal = await usdc.balanceOf(await signer.getAddress());
+    document.getElementById("balance").innerText = ethers.formatUnits(bal, 6);
+  }
+
+  async function jogar(guess) {
+    const bet = document.getElementById("bet").value;
+    if (!bet || bet < 1) return alert("Aposta mínima: 1 USDC");
+
+    document.getElementById("result").innerHTML = "Aprovando...";
+
+    try {
+      // Aprovar USDC
+      const amount = ethers.parseUnits(bet, 6);
+      const approve = await usdc.approve(CONTRACT_ADDRESS, amount * 2n);
+      await approve.wait();
+
+      // Jogar!
+      const tx = await contract.flip(bet, guess);
+      const receipt = await tx.wait();
+
+      document.getElementById("result").innerHTML = `
+        Jogado! <a href="https://testnet.arcscan.app/tx/${receipt.hash}" target="_blank">
+          Ver no Explorer
+        </a><br>Atualize o saldo!
+      `;
+      updateBalance();
+    } catch (e) {
+      document.getElementById("result").innerHTML = "Erro: " + e.message;
+    }
+  }
+</script>
+</body>
+</html>
