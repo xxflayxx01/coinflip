@@ -3,92 +3,113 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Cara ou Coroa - Arc</title>
-  <!-- ethers v6 com defer (carrega antes do JS) -->
+  <title>Cara ou Coroa – Arc Testnet</title>
+
+  <!-- ethers v6 – carregamento garantido antes do JS -->
   <script defer src="https://cdn.ethers.io/lib/ethers-6.13.2.umd.min.js"></script>
+
   <style>
-    body { font-family: Arial; text-align: center; background: #f0f8ff; padding: 20px; }
-    h1 { color: #1a1a1a; }
-    button { 
-      background: #007bff; color: white; padding: 12px 24px; 
-      border: none; border-radius: 8px; cursor: pointer; margin: 10px; font-size: 18px;
+    body {font-family:Arial,Helvetica,sans-serif;background:#f0f8ff;padding:20px;text-align:center;}
+    h1 {color:#1a1a1a;}
+    input {padding:10px;width:100px;font-size:16px;text-align:center;margin:8px;}
+    button {
+      background:#007bff;color:#fff;padding:12px 24px;border:none;border-radius:8px;
+      cursor:pointer;margin:6px;font-size:18px;
     }
-    button:hover { background: #0056b3; }
-    button:disabled { background: #ccc; cursor: not-allowed; }
-    input { padding: 10px; width: 100px; font-size: 16px; text-align: center; }
-    #result { font-size: 20px; margin: 20px; color: #d63384; }
-    .small { font-size: 14px; color: #666; }
+    button:hover {background:#0056b3;}
+    button:disabled {background:#ccc;cursor:not-allowed;}
+    #result {font-size:20px;margin:20px;color:#d63384;}
+    .small {font-size:14px;color:#666;}
   </style>
 </head>
 <body>
   <h1>Cara ou Coroa na Arc Testnet</h1>
+
   <p><strong>Saldo USDC:</strong> <span id="balance">0</span></p>
-  
-  <input type="number" id="bet" placeholder="1" min="1" value="1" />
+
+  <input type="number" id="bet" placeholder="1" min="1" value="1"/>
   <p class="small">Aposta em USDC (mínimo 1)</p>
 
   <br/>
   <button id="addBtn">Adicionar Rede Arc</button>
-  <button id="connectBtn">Conectar MetaMask</button>
+  <button id="connectBtn">Conectar Carteira</button>
+
   <br/><br/>
-  <button id="caraBtn" onclick="jogar(0)" disabled>CARA</button>
-  <button id="coroaBtn" onclick="jogar(1)" disabled>COROA</button>
+  <button id="cBtn" onclick="jogar(0)" disabled>CARA</button>
+  <button id="kBtn" onclick="jogar(1)" disabled>COROA</button>
 
   <div id="result">Aguardando conexão...</div>
 
 <script defer>
-  // === CONFIGURAÇÕES ===
-  const CONTRACT_ADDRESS = "0xc73dc55c5dd98b1010d4b93c53a54581a7941d11"; // ← MUDE!
+  // ==============================================================
+  // CONFIGURAÇÕES – MUDE APENAS O ENDEREÇO DO CONTRATO
+  // ==============================================================
+  const CONTRACT_ADDRESS = "0xc73dc55c5dd98b1010d4b93c53a54581a7941d11";
   const USDC = "0x3600000000000000000000000000000000000000";
+
   const ABI = ["function flip(uint256 bet, uint256 guess) external"];
 
-  let provider, signer, contract, usdc;
-  const resultEl = document.getElementById("result");
+  // ==============================================================
+  // ELEMENTOS DA UI
+  // ==============================================================
+  const resultEl   = document.getElementById("result");
   const connectBtn = document.getElementById("connectBtn");
-  const caraBtn = document.getElementById("caraBtn");
-  const coroaBtn = document.getElementById("coroaBtn");
+  const cBtn       = document.getElementById("cBtn");
+  const kBtn       = document.getElementById("kBtn");
 
-  // === ADICIONAR REDE ARC (Chain ID CORRETO!) ===
+  let provider, signer, contract, usdc;
+
+  // ==============================================================
+  // 1. ADICIONAR REDE ARC – CHAIN ID EM DECIMAL (5042002)
+  // ==============================================================
   document.getElementById("addBtn").onclick = async () => {
-    if (!window.ethereum) return alert("MetaMask não detectado!");
+    if (!window.ethereum) return alert("Carteira não detectada! Instale MetaMask ou Rabby.");
 
     try {
+      // tenta mudar para a rede (se já existir)
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: '0x4cd00a' }], // 5042002
+        params: [{ chainId: '0x4cd00a' }],   // hex (padrão)
       });
-    } catch (switchError) {
-      if (switchError.code === 4902) {
+      resultEl.innerHTML = "Rede Arc já está ativa!";
+    } catch (switchErr) {
+      if (switchErr.code === 4902) { // rede não existe → adiciona
         try {
           await window.ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [{
-              chainId: '5042002', // 5042002
+              chainId: 5042002,                     // <--- DECIMAL DIRETO
               chainName: 'Arc Testnet',
               rpcUrls: ['https://rpc.testnet.arc.network'],
               nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 6 },
               blockExplorerUrls: ['https://testnet.arcscan.app']
             }]
           });
-          resultEl.innerHTML = "Rede Arc adicionada!";
-        } catch (addError) {
-          resultEl.innerHTML = "Erro ao adicionar rede: " + addError.message;
+          resultEl.innerHTML = "Rede Arc adicionada (Chain ID 5042002)!";
+        } catch (addErr) {
+          resultEl.innerHTML = "Erro ao adicionar: " + addErr.message;
         }
+      } else {
+        resultEl.innerHTML = "Erro ao mudar de rede: " + switchErr.message;
       }
     }
+    // recarrega para garantir que a carteira atualizou a rede
+    setTimeout(() => location.reload(), 1500);
   };
 
-  // === CONECTAR CARTEIRA ===
+  // ==============================================================
+  // 2. CONECTAR CARTEIRA
+  // ==============================================================
   connectBtn.onclick = async () => {
-    if (typeof ethers === 'undefined') {
-      return alert("Erro: ethers não carregou. Recarregue a página.");
-    }
-    if (!window.ethereum) return alert("Instale o MetaMask!");
+    if (typeof ethers === 'undefined')
+      return alert("ethers não carregou – recarregue a página.");
+
+    if (!window.ethereum) return alert("Instale MetaMask ou Rabby!");
 
     try {
       await window.ethereum.request({ method: 'eth_requestAccounts' });
       provider = new ethers.BrowserProvider(window.ethereum);
-      signer = await provider.getSigner();
+      signer   = await provider.getSigner();
 
       contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
       usdc = new ethers.Contract(USDC, [
@@ -96,30 +117,31 @@
         "function approve(address,uint256) returns (bool)"
       ], signer);
 
-      updateBalance();
-      resultEl.innerHTML = "Conectado com sucesso!";
+      await updateBalance();
+      resultEl.innerHTML = "Conectado!";
       connectBtn.disabled = true;
-      caraBtn.disabled = false;
-      coroaBtn.disabled = false;
+      cBtn.disabled = false;
+      kBtn.disabled = false;
     } catch (e) {
       resultEl.innerHTML = "Erro ao conectar: " + e.message;
     }
   };
 
-  // === ATUALIZAR SALDO ===
+  // ==============================================================
+  // 3. ATUALIZAR SALDO
+  // ==============================================================
   async function updateBalance() {
     try {
       const bal = await usdc.balanceOf(await signer.getAddress());
       document.getElementById("balance").innerText = ethers.formatUnits(bal, 6);
-    } catch (e) {
-      console.error("Erro no saldo:", e);
-    }
+    } catch (e) { console.error(e); }
   }
 
-  // === JOGAR ===
+  // ==============================================================
+  // 4. JOGAR
+  // ==============================================================
   async function jogar(guess) {
-    const betInput = document.getElementById("bet");
-    const bet = betInput.value;
+    const bet = document.getElementById("bet").value;
     if (!bet || bet < 1) return alert("Aposta mínima: 1 USDC");
 
     resultEl.innerHTML = "Aprovando USDC...";
@@ -140,7 +162,7 @@
         </a>
         <br><small>Atualize o saldo!</small>
       `;
-      updateBalance();
+      await updateBalance();
     } catch (e) {
       resultEl.innerHTML = "Erro: " + (e.reason || e.message);
     }
