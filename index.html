@@ -4,10 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Cara ou Coroa – Arc Testnet</title>
-
-  <!-- ethers v6 – carregamento garantido antes do JS -->
   <script defer src="https://cdn.ethers.io/lib/ethers-6.13.2.umd.min.js"></script>
-
   <style>
     body {font-family:Arial,Helvetica,sans-serif;background:#f0f8ff;padding:20px;text-align:center;}
     h1 {color:#1a1a1a;}
@@ -24,112 +21,72 @@
 </head>
 <body>
   <h1>Cara ou Coroa na Arc Testnet</h1>
-
   <p><strong>Saldo USDC:</strong> <span id="balance">0</span></p>
-
   <input type="number" id="bet" placeholder="1" min="1" value="1"/>
   <p class="small">Aposta em USDC (mínimo 1)</p>
-
   <br/>
   <button id="addBtn">Adicionar Rede Arc</button>
   <button id="connectBtn">Conectar Carteira</button>
-
   <br/><br/>
   <button id="cBtn" onclick="jogar(0)" disabled>CARA</button>
   <button id="kBtn" onclick="jogar(1)" disabled>COROA</button>
-
   <div id="result">Aguardando conexão...</div>
 
 <script defer>
-  // ==============================================================
-  // CONFIGURAÇÕES – MUDE APENAS O ENDEREÇO DO CONTRATO
-  // ==============================================================
-  const CONTRACT_ADDRESS = "0xc73dc55c5dd98b1010d4b93c53a54581a7941d11";
+  const CONTRACT_ADDRESS = "0xc73dc55c5dd98b1010d4b93c53a54581a7941d11"; // MUDE ISSO!
   const USDC = "0x3600000000000000000000000000000000000000";
-
   const ABI = ["function flip(uint256 bet, uint256 guess) external"];
-
-  // ==============================================================
-  // ELEMENTOS DA UI
-  // ==============================================================
-  const resultEl   = document.getElementById("result");
+  const resultEl = document.getElementById("result");
   const connectBtn = document.getElementById("connectBtn");
-  const cBtn       = document.getElementById("cBtn");
-  const kBtn       = document.getElementById("kBtn");
-
+  const cBtn = document.getElementById("cBtn");
+  const kBtn = document.getElementById("kBtn");
   let provider, signer, contract, usdc;
 
-  // ==============================================================
-  // 1. ADICIONAR REDE ARC – CHAIN ID EM DECIMAL (5042002)
-  // ==============================================================
   document.getElementById("addBtn").onclick = async () => {
-    if (!window.ethereum) return alert("Carteira não detectada! Instale MetaMask ou Rabby.");
-
+    if (!window.ethereum) return alert("Carteira não detectada!");
     try {
-      // tenta mudar para a rede (se já existir)
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: '0x4cd00a' }],   // hex (padrão)
-      });
-      resultEl.innerHTML = "Rede Arc já está ativa!";
+      await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x4cd00a' }] });
+      resultEl.innerHTML = "Rede Arc ativa!";
     } catch (switchErr) {
-      if (switchErr.code === 4902) { // rede não existe → adiciona
+      if (switchErr.code === 4902) {
         try {
           await window.ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [{
-              chainId: 5042002,                     // <--- DECIMAL DIRETO
+              chainId: 5042002, // DECIMAL!
               chainName: 'Arc Testnet',
               rpcUrls: ['https://rpc.testnet.arc.network'],
               nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 6 },
               blockExplorerUrls: ['https://testnet.arcscan.app']
             }]
           });
-          resultEl.innerHTML = "Rede Arc adicionada (Chain ID 5042002)!";
-        } catch (addErr) {
-          resultEl.innerHTML = "Erro ao adicionar: " + addErr.message;
-        }
-      } else {
-        resultEl.innerHTML = "Erro ao mudar de rede: " + switchErr.message;
+          resultEl.innerHTML = "Rede adicionada (5042002)!";
+        } catch (addErr) { resultEl.innerHTML = "Erro: " + addErr.message; }
       }
     }
-    // recarrega para garantir que a carteira atualizou a rede
     setTimeout(() => location.reload(), 1500);
   };
 
-  // ==============================================================
-  // 2. CONECTAR CARTEIRA
-  // ==============================================================
   connectBtn.onclick = async () => {
-    if (typeof ethers === 'undefined')
-      return alert("ethers não carregou – recarregue a página.");
-
-    if (!window.ethereum) return alert("Instale MetaMask ou Rabby!");
-
+    if (typeof ethers === 'undefined') return alert("Recarregue a página.");
+    if (!window.ethereum) return alert("Instale MetaMask/Rabby!");
     try {
       await window.ethereum.request({ method: 'eth_requestAccounts' });
       provider = new ethers.BrowserProvider(window.ethereum);
-      signer   = await provider.getSigner();
-
+      signer = await provider.getSigner();
       contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
       usdc = new ethers.Contract(USDC, [
         "function balanceOf(address) view returns (uint256)",
         "function approve(address,uint256) returns (bool)"
       ], signer);
-
       await updateBalance();
       resultEl.innerHTML = "Conectado!";
       connectBtn.disabled = true;
       cBtn.disabled = false;
       kBtn.disabled = false;
-    } catch (e) {
-      resultEl.innerHTML = "Erro ao conectar: " + e.message;
-    }
+    } catch (e) { resultEl.innerHTML = "Erro: " + e.message; }
   };
 
-  // ==============================================================
-  // 3. ATUALIZAR SALDO
-  // ==============================================================
   async function updateBalance() {
     try {
       const bal = await usdc.balanceOf(await signer.getAddress());
@@ -137,35 +94,20 @@
     } catch (e) { console.error(e); }
   }
 
-  // ==============================================================
-  // 4. JOGAR
-  // ==============================================================
   async function jogar(guess) {
     const bet = document.getElementById("bet").value;
-    if (!bet || bet < 1) return alert("Aposta mínima: 1 USDC");
-
-    resultEl.innerHTML = "Aprovando USDC...";
-
+    if (!bet || bet < 1) return alert("Mínimo 1 USDC");
+    resultEl.innerHTML = "Aprovando...";
     try {
       const amount = ethers.parseUnits(bet, 6);
       const approveTx = await usdc.approve(CONTRACT_ADDRESS, amount * 2n);
       await approveTx.wait();
-
       resultEl.innerHTML = "Jogando...";
       const tx = await contract.flip(bet, guess);
       const receipt = await tx.wait();
-
-      resultEl.innerHTML = `
-        Jogado! 
-        <a href="https://testnet.arcscan.app/tx/${receipt.hash}" target="_blank">
-          Ver no Explorer
-        </a>
-        <br><small>Atualize o saldo!</small>
-      `;
+      resultEl.innerHTML = `Jogado! <a href="https://testnet.arcscan.app/tx/${receipt.hash}" target="_blank">Ver</a><br><small>Atualize saldo!</small>`;
       await updateBalance();
-    } catch (e) {
-      resultEl.innerHTML = "Erro: " + (e.reason || e.message);
-    }
+    } catch (e) { resultEl.innerHTML = "Erro: " + (e.reason || e.message); }
   }
 </script>
 </body>
